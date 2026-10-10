@@ -152,6 +152,19 @@
         "max_faces": 1
       },
       "why": "Over-the-shoulder viewing: the person logged in isn't the only one seeing the result."
+    },
+    {
+      "id": "R15",
+      "type": "unanswered_red",
+      "severity": "RED",
+      "params": {
+        "hours": 48,
+        "responders": [
+          "auditor",
+          "supervisor"
+        ]
+      },
+      "why": "A flag nobody answers is California's unread logs again. Every RED needs a signed response from an authorized person within 48 hours, never from the person it's about; otherwise it escalates to the clerk and the council."
     }
   ]
 }

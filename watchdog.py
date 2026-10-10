@@ -55,6 +55,11 @@ class FrontDoor:
         return self.ring(t, "PRESENCE", dict(user=user.name, device=device.name, live=live, faces=faces),
                          cosigners=(user, device) if live else (device,))
 
+    def respond(self, t, responder, rule_id, seq, action, notes):
+        """A named person answers a red flag: what was found, what was done. Signed, on the journal."""
+        return self.ring(t, "RESPONSE", dict(rule=rule_id, seq=seq, responder=responder.name,
+                                             action=action, notes=notes), cosigners=(responder,))
+
     def review(self, t, auditor, through_seq, notes):
         return self.ring(t, "REVIEW", dict(auditor=auditor.name, through_seq=through_seq, notes=notes),
                          cosigners=(auditor,))
@@ -203,15 +208,53 @@ def _(qs, p, ctx):
             yield q, f"revoked key '{q['user']}' was used"
 
 
+def unanswered_red(findings, responses, p, ctx, seq_info):
+    """Every RED needs a signed response from an authorized person, within the deadline, and never
+    from the person it's about. An unanswered red goes to the clerk and the council."""
+    deadline = p["hours"] * HOUR
+    for sev, rid, seq, _ in list(findings):
+        if sev != "RED":
+            continue
+        info = seq_info.get(seq, dict(t=ctx["now"] - deadline, user=None))
+        late_by = None
+        answered = False
+        for r in responses:
+            if r["rule"] != rid or r["seq"] != seq:
+                continue
+            office = ctx["offices"].get(r["responder"])
+            if not r["signed"]:
+                yield r["resp_seq"], f"response to {rid} #{seq} isn't signed by {r['responder']}"
+            elif office not in p["responders"]:
+                yield r["resp_seq"], f"{r['responder']} can't clear {rid} #{seq}: not an authorized responder"
+            elif info["user"] and r["responder"] == info["user"]:
+                yield r["resp_seq"], f"{r['responder']} tried to clear a flag about themselves ({rid} #{seq})"
+            elif r["t"] - info["t"] > deadline:
+                late_by = (r["t"] - info["t"]) / HOUR
+                answered = True
+            else:
+                answered = True
+                late_by = None
+                break
+        if late_by:
+            yield seq, f"{rid} #{seq} answered after {late_by:.0f} h (limit {p['hours']} h)"
+        elif not answered and ctx["now"] - info["t"] > deadline:
+            yield seq, f"{rid} #{seq} has had no valid response for {(ctx['now'] - info['t']) / HOUR:.0f} h: escalate to the clerk and the council"
+
+
+META_TYPES = {"unanswered_red": unanswered_red}
+
+
 # --------------------------------------------------------------------------------------------
 # The watchdog: verify signatures and the rule set, then run every rule
 # --------------------------------------------------------------------------------------------
 def watch(door, rules_on_disk, registry, ctx):
     findings = []
-    queries, reviews, rulesets, presence = [], [], [], []
+    queries, reviews, rulesets, presence, responses = [], [], [], [], []
+    seq_info = {}
     for rec in door.journal:
         b, msg = rec["body"], canon(rec["body"])
         p = door.payloads[b["data"]]
+        seq_info[b["seq"]] = dict(t=b["t"], user=p.get("user"))
         if not verify_sig(registry["FRONT-DOOR"], msg, rec["sig"]):
             findings.append(("RED", "SIG", b["seq"], "front door signature fails"))
         signed = {c["who"] for c in rec["cosigs"]
@@ -226,6 +269,8 @@ def watch(door, rules_on_disk, registry, ctx):
             if p["device"] not in signed:
                 findings.append(("RED", "SIG", b["seq"], f"presence not signed by device '{p['device']}'"))
             presence.append(dict(p, t=b["t"], seq=b["seq"], user_signed=p["user"] in signed))
+        elif b["kind"] == "RESPONSE":
+            responses.append(dict(p, t=b["t"], resp_seq=b["seq"], signed=p["responder"] in signed))
         elif b["kind"] == "REVIEW" and p["auditor"] in signed:
             reviews.append(b["t"])
         elif b["kind"] == "RULESET":
@@ -247,12 +292,18 @@ def watch(door, rules_on_disk, registry, ctx):
 
     ctx = dict(ctx, reviews=reviews, presence=presence)
     for r in prev_rules["rules"] if prev_rules else []:
+        if r["type"] in META_TYPES:
+            continue
         fn = RULE_TYPES.get(r["type"])
         if fn is None:
             findings.append(("RED", r["id"], "-", f"rule type '{r['type']}' has no checker: fail loud, never skip"))
             continue
         for q, msg in fn(queries, r["params"], ctx):
             findings.append((r["severity"], r["id"], q["seq"], msg))
+    for r in prev_rules["rules"] if prev_rules else []:
+        if r["type"] in META_TYPES:
+            for seq, msg in META_TYPES[r["type"]](findings, responses, r["params"], ctx, seq_info):
+                findings.append((r["severity"], r["id"], seq, msg))
     return findings
 
 
@@ -261,14 +312,16 @@ def watch(door, rules_on_disk, registry, ctx):
 # --------------------------------------------------------------------------------------------
 def week(rules):
     people = {n: Signer(n, height=6) for n in
-              ("sheriff", "deputy-a", "investigator-b", "former-deputy-c", "auditor-board", "county-clerk")}
+              ("sheriff", "deputy-a", "investigator-b", "former-deputy-c", "auditor-board", "county-clerk",
+                        "chief-deputy")}
     devices = {n: Signer(n, height=7) for n in ("SO-TERM-01", "SO-TERM-02", "SO-LAPTOP-S1", "SO-MDT-07", "UNKNOWN-PC")}
     door = FrontDoor()
     registry = {"FRONT-DOOR": hx(door.badge.root), **{k: hx(v.root) for k, v in {**people, **devices}.items()}}
     ctx = dict(open_cases={"26-0412", "26-0418"},
                roles={"sheriff": "sheriff", "deputy-a": "deputy", "investigator-b": "investigator"},
                protected={"SHELTER1"},
-               offices={"auditor-board": "auditor", "county-clerk": "clerk"},
+               offices={"auditor-board": "auditor", "county-clerk": "clerk", "chief-deputy": "supervisor",
+                        "sheriff": "supervisor"},
                now=10 * DAY)
     P, D = people, devices
     real_query = door.query
@@ -297,6 +350,21 @@ def week(rules):
                    "canvass of plates near the theft location", f"ARK{100 + k}", shared_with="Data Broker LLC" if k == 15 else None)
     door.query(6 * DAY + 11 * HOUR, P["former-deputy-c"], D["SO-TERM-01"], "26-0412", "checking an old lead on the truck", "7ABC123")
     door.query = real_query
+    seq_of = {(p["plate"], p["user"]): r["body"]["seq"] for r in door.journal
+              for p in [door.payloads[r["body"]["data"]]] if r["body"]["kind"] == "QUERY"}
+    s_unknown = seq_of[("ARK55X1", "sheriff")] if False else next(
+        r["body"]["seq"] for r in door.journal if r["body"]["kind"] == "QUERY"
+        and door.payloads[r["body"]["data"]]["device"] == "UNKNOWN-PC")
+    s_shelter = seq_of[("SHELTER1", "deputy-a")]
+    s_broker = seq_of[("ARK115", "investigator-b")]
+    # answered properly, within a day, by the auditor
+    door.respond(4 * DAY + 9 * HOUR, P["auditor-board"], "R07", s_shelter, "suspended",
+                 "deputy-a's access suspended pending interview; plate owner notified through the shelter")
+    # answered, but 60 h late
+    door.respond(8 * DAY + 1 * HOUR, P["chief-deputy"], "R08", s_broker, "data recalled",
+                 "sharing request was not on the list; broker told to delete; investigator retrained")
+    # the sheriff tries to clear the flag about his own key
+    door.respond(3 * DAY + 16 * HOUR, P["sheriff"], "R01", s_unknown, "cleared", "that was me on a borrowed PC")
     return door, registry, ctx, P
 
 
@@ -334,9 +402,9 @@ if __name__ == "__main__":
     # a new rule added properly: one auditor signature, and it starts working at once
     grown = copy.deepcopy(rules)
     grown["version"] = 2
-    grown["rules"].append({"id": "R15", "type": "protected_plates", "severity": "RED", "params": {"list": "v2"},
+    grown["rules"].append({"id": "R99", "type": "protected_plates", "severity": "RED", "params": {"list": "v2"},
                            "why": "example of the rule set growing"})
     door3 = copy.deepcopy(door)
     door3.publish_rules(7 * DAY, grown, "add", [P["auditor-board"]])
-    f = [x for x in watch(door3, grown, registry, ctx) if x[1] in ("RULES", "R15")]
-    show("A new rule R15 added the proper way (auditor signs), applied to the whole history", f)
+    f = [x for x in watch(door3, grown, registry, ctx) if x[1] in ("RULES", "R99")]
+    show("A new rule (R99) added the proper way (auditor signs), applied to the whole history", f)

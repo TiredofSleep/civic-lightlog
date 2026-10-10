@@ -122,6 +122,12 @@ unlocked. The log knows **whose eyes** were on the data, and whether **anyone el
 - **Law and labour.** Arkansas counts biometric data as personal information under its breach law.
   Requiring it of county staff needs a written policy, and it's another reason never to store templates.
 
+**Every red gets an answer (R15).** A flag nobody answers is just a quieter version of an unread
+log. So every RED needs a signed `RESPONSE` receipt within 48 hours (what was found and what was done)
+from an authorized responder: the auditor or a supervisor, **never the person the flag is about**.
+A late answer is flagged as late. A missing one escalates to the clerk and the council. The responses
+are public receipts too, so the public can see whether flags are actually acted on.
+
 **The rules guard themselves.** The rule set's hash is published as a `RULESET` receipt. Adding a rule
 needs the auditor's signature. **Anything else (removing a rule, loosening a limit) counts as weakening
 and needs the auditor and the county clerk.** The watchdog works out the change type itself, so a
