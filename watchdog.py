@@ -352,9 +352,8 @@ def week(rules):
     door.query = real_query
     seq_of = {(p["plate"], p["user"]): r["body"]["seq"] for r in door.journal
               for p in [door.payloads[r["body"]["data"]]] if r["body"]["kind"] == "QUERY"}
-    s_unknown = seq_of[("ARK55X1", "sheriff")] if False else next(
-        r["body"]["seq"] for r in door.journal if r["body"]["kind"] == "QUERY"
-        and door.payloads[r["body"]["data"]]["device"] == "UNKNOWN-PC")
+    s_unknown = next(r["body"]["seq"] for r in door.journal if r["body"]["kind"] == "QUERY"
+                     and door.payloads[r["body"]["data"]]["device"] == "UNKNOWN-PC")
     s_shelter = seq_of[("SHELTER1", "deputy-a")]
     s_broker = seq_of[("ARK115", "investigator-b")]
     # answered properly, within a day, by the auditor
