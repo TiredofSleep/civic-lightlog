@@ -35,10 +35,12 @@ data is involved. It just isn't what makes the system trustworthy.
 |---|---|
 | [DESIGN.md](DESIGN.md) | the POS model, the record format, how tampering shows on the digital side and the UI side, the threat model and its limits |
 | [lightlog.py](lightlog.py) | the working prototype: one camera's shift, then seven ways to cheat it, and what the auditor sees |
+| [watchdog.py](watchdog.py) · [rules.json](rules.json) | the front door and its watchdog: every lookup signed by the user's key **and** the device's key; rules as data that can grow; weakening a rule needs two signatures |
 | [GRAVEYARD.md](GRAVEYARD.md) | ideas that don't work, and why |
 
 ```bash
-python lightlog.py     # standard library only; runs in about a second
+python lightlog.py     # the camera journal: seven tamper tests (standard library only)
+python watchdog.py     # a week at the front door, eleven watchdog rules, and attacks on the rules themselves
 ```
 
 What the run shows (abridged):

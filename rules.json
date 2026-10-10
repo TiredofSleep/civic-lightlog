@@ -1,0 +1,33 @@
+{
+  "_about": "Watchdog rules as data. Adding a rule needs the auditor's signature; weakening or removing one needs the auditor AND the county clerk, and the change itself is a receipt on the public journal. Every rule names the real failure it exists to catch.",
+  "version": 1,
+  "rules": [
+    {"id": "R01", "type": "key_on_own_devices", "severity": "RED",
+     "params": {"bindings": {"sheriff": ["SO-TERM-01", "SO-LAPTOP-S1"], "deputy-a": ["SO-TERM-01", "SO-MDT-07"], "investigator-b": ["SO-TERM-02"]}},
+     "why": "A DEA agent searched Flock under a local officer's password; the log named the wrong person. A user's key only counts on that user's registered devices."},
+    {"id": "R02", "type": "case_must_be_open", "severity": "RED", "params": {},
+     "why": "Flock reason fields filled with 'idk' and 'LMAO'. No open case on the county case list, no search."},
+    {"id": "R03", "type": "reason_quality", "severity": "AMBER",
+     "params": {"min_chars": 12, "banned": ["idk", "lmao", "tbd", "test", "n/a", "investigation"]},
+     "why": "A dropdown or one-word reason becomes a rubber stamp."},
+    {"id": "R04", "type": "off_hours", "severity": "AMBER",
+     "params": {"start_h": 6, "end_h": 22, "exempt_roles": ["dispatch"]},
+     "why": "Personal-curiosity searches cluster after hours."},
+    {"id": "R05", "type": "distinct_plates_per_day", "severity": "AMBER", "params": {"max": 15},
+     "why": "One user, many plates, one day: the bulk-search pattern."},
+    {"id": "R06", "type": "plates_per_case", "severity": "AMBER", "params": {"max": 10},
+     "why": "A single case number used as a skeleton key."},
+    {"id": "R07", "type": "protected_plates", "severity": "RED",
+     "params": {"list": "protected-list-v1 (held by the auditor: shelter staff, judges, officers' families)"},
+     "why": "Stalking an ex-partner or a shelter is the abuse that hurts people most. Any lookup of a protected plate goes straight to the auditor."},
+    {"id": "R08", "type": "sharing_allowlist", "severity": "RED",
+     "params": {"allowed": ["Arkadelphia PD", "Arkansas State Police"]},
+     "why": "One California sheriff shared with 1,000+ entities in 44 states. Sharing outside the council-approved list is a violation."},
+    {"id": "R09", "type": "impossible_travel", "severity": "RED", "params": {"minutes": 10},
+     "why": "The same key on two different devices within minutes means the key was copied."},
+    {"id": "R10", "type": "review_overdue", "severity": "RED", "params": {"max_days": 7},
+     "why": "California agencies had a logging law and did 'little to no auditing'. Watch the watchers: no signed auditor review for 7 days is itself a violation."},
+    {"id": "R11", "type": "revoked_key", "severity": "RED", "params": {"revoked": ["former-deputy-c"]},
+     "why": "People leave; their keys must stop working the same day."}
+  ]
+}

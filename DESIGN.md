@@ -85,6 +85,37 @@ A dashboard can lie too: it can show green over a broken chain. So:
 
 ---
 
+## 3b. The watchdog (`watchdog.py`, `rules.json`)
+Every lookup goes through **one front door**, which rings it up with three signatures: the front
+door's, **the user's key**, and **the device's key** (held in the terminal's secure chip). That makes
+"the sheriff's key only works on the sheriff's devices" checkable. A copied password used on another
+machine can't produce that machine's signature under his name, which closes the documented DEA case.
+
+**Rules are data.** Each rule in `rules.json` names a type (a small checker function), its
+parameters, a severity, and **the real failure it exists to catch**. New rules of an existing type
+need no code. A rule type with no checker fails loudly; it's never silently skipped.
+
+| rule type | catches |
+|---|---|
+| key_on_own_devices | a user's key used on a device not registered to them |
+| case_must_be_open | lookups under case numbers that aren't open cases |
+| reason_quality | "idk", "test", one-word reasons |
+| off_hours | curiosity searches at 2 a.m. |
+| distinct_plates_per_day / plates_per_case | bulk searching; one case number as a skeleton key |
+| protected_plates | lookups of shelter staff, judges, officers' families: straight to the auditor |
+| sharing_allowlist | results sent to anyone not on the council-approved list |
+| impossible_travel | the same key on two devices within minutes (a copied key) |
+| review_overdue | **watching the watchers:** no signed auditor review within 7 days is a violation |
+| revoked_key | keys still working after someone leaves |
+
+**The rules guard themselves.** The rule set's hash is published as a `RULESET` receipt. Adding a rule
+needs the auditor's signature. **Anything else (removing a rule, loosening a limit) counts as weakening
+and needs the auditor and the county clerk.** The watchdog works out the change type itself, so a
+weakening labelled "add" is flagged. A `rules.json` edited on the server but never published is
+flagged too. New rules apply to the whole history, so a rule written today catches last month's abuse.
+
+---
+
 ## 4. Storage
 - **On the camera:** append-only flash, the journal plus payloads for hits only (kilobytes a day; the
   full plate stream is never stored).
