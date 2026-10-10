@@ -65,7 +65,7 @@ holding nothing worth stealing.
 | site | role | holds |
 |---|---|---|
 | **dispatch center** | the Jetson: front door, full journal, watchdog, retention job | plate reads under the retention cap, the journal, sentinel reports |
-| courthouse / clerk | second full copy of the journal; the public bench; the spares safe | the journal, the update token, spare sentinels and a spare Jetson |
+| **courthouse / clerk** | **the watchdog Jetson** (auditor-owned, receive-only); second full copy of the journal; the public bench; the spares safe | the journal, the protected-plate list, the update token, spare sentinels and spare Jetsons |
 | hospital | witness node, receive-only | checkpoint fingerprints only: no plates, no case numbers |
 | library, local paper | witness nodes + the public viewer; the printed daily fingerprint | checkpoint fingerprints |
 
@@ -75,6 +75,48 @@ local paper as witness nodes.
 
 **Needs a yes from:** the dispatch director (and the 911 board if the county has one), on rack space,
 power, room access and who holds the cabinet key.
+
+## 1c. The second Jetson: the independent watchdog
+**The system being watched doesn't run its own watchdog.** A second Jetson, owned by the auditor board
+and kept at the clerk's office, **only receives**. Nothing on the sheriff's side can reach it, change
+it, or ask it anything.
+
+```
+ [ dispatch Jetson ] ==one-way==>  ┌──────── clerk's office, auditor's sealed cabinet ────────┐
+                                   │  [ watchdog Jetson ]                                       │
+ [ sentinels, all sites ] --LoRa-> │    own LoRa gateway (hears every sentinel directly)        │
+                                   │    full copy of the journal + the buried protected list    │
+                                   └──────────────┬────────────────────────────────────────────┘
+                                                  ║ one-way OUT (a separate link, never toward dispatch)
+                                   [ auditor's devices ]  [ public viewer + witness nodes ]
+```
+
+**What it does:**
+- **Re-runs every watchdog rule (R01–R15) itself,** on its own copy, with its own code. If its findings
+  differ from what dispatch reports, that disagreement is itself a red flag.
+- **Hears the sentinels directly** over its own LoRa gateway, then reconciles their reports with the
+  dispatch journal: a sentinel saying "case open" while the camera's journal looks normal; heartbeats
+  dispatch never forwarded; a gap one side shows and the other hides.
+- **Holds the buried protected-plate list.** Lookups flow in; matches flow out only to the auditor. The
+  list never touches a machine the sheriff's side can reach.
+- **Analyses patterns** the simple rules miss: a user's lookups drifting toward one neighbourhood or one
+  person; searches that cluster after a public event; plate-read accuracy on mystery-shopper test plates
+  (the GPU earns its place here by re-reading sampled images to audit the main system's reads).
+- **Reports out on a separate one-way link** to the auditor's devices and the public witnesses. The
+  outbound link goes away from dispatch, so even its alerts can't be intercepted or answered by the
+  system it's watching.
+
+**Who owns it:** the **auditor board**, not the sheriff. It has its own key ceremony, its own
+sentinel, its own seal, and its own spare at the public bench. Updates follow the same swap rule,
+signed by the auditor and the clerk.
+
+**Honest limits:**
+- **It only sees what's sent.** If dispatch stops sending, that silence is the alarm, and the
+  sentinels' direct LoRa reports are the second source that doesn't depend on dispatch.
+- **It needs CJIS-grade physical security too** if it holds plates or case numbers: a locked room, and
+  fingerprint-checked people with access. Check with ACIC before placing it at the clerk's.
+- **Two Jetsons, two maintenance burdens.** If budget forces a choice, the watchdog can start on a
+  smaller computer (the rules are light) and grow into the GPU for the accuracy audits.
 
 ## 2. The one exception: data, not code
 Hotlists change daily, so driving them around by hand isn't realistic. **Code only moves by hand. Data

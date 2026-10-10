@@ -38,7 +38,7 @@ data is involved. It just isn't what makes the system trustworthy.
 | [lightlog.py](lightlog.py) | the working prototype: one camera's shift, then seven ways to cheat it, and what the auditor sees |
 | [watchdog.py](watchdog.py) · [rules.json](rules.json) | the front door and its watchdog: every lookup signed by the user's key **and** the device's key, after a live eye match on the device (the eyes never enter the log); rules as data that can grow; weakening a rule needs two signatures |
 | [SENTINEL.md](SENTINEL.md) | a locally built watchdog chip on every device: its own key, power and one-way radio; reports opening, moving, unplugging and reprogramming |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | putting a sentinel at every camera, and updating everything only by hand: swap sealed modules in the field, update at one public bench with a witness |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | the main Jetson at dispatch, an independent receive-only watchdog Jetson owned by the auditor, a sentinel at every camera, and updating everything only by hand: swap sealed modules in the field, update at one public bench with a witness |
 | [GRAVEYARD.md](GRAVEYARD.md) | ideas that don't work, and why |
 
 ```bash
