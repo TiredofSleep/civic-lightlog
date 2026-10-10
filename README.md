@@ -5,7 +5,8 @@
 > stand-in for real standards. The legal and policy pieces are sketches. Read it, argue with it,
 > don't install it on a pole.
 
-**City- and county-owned plate cameras, protected by light instead of secrecy.**
+**City- and county-owned plate cameras, protected by light instead of secrecy.** Being designed for
+**Clark County, Arkansas** (county seat: Arkadelphia), and meant to be reusable by any county.
 
 Commercial license-plate camera networks keep searchable histories of everyone's movements on a
 vendor's servers, shared across agencies in ways residents can't see. This project designs the

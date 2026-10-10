@@ -215,7 +215,7 @@ def audit(journal, payloads, badges, witnesses=()):
 # The shift: one honest day, then every way someone might try to cheat
 # --------------------------------------------------------------------------------------------
 def honest_day(seed=None, officer=None, with_query=True):
-    cam = Camera("CAM-07", "Central Ave & Grand", seed=seed)
+    cam = Camera("CAM-07", "US 67, Arkadelphia", seed=seed)
     officer = officer or Signer("Ofc. Rivera #212", height=4)
     hotlist = {"7ABC123": "stolen vehicle, report 26-0412"}
     cam.clock_in(0, witness_nonce="clerk-2026-10-10-7f3a")
@@ -235,7 +235,7 @@ def honest_day(seed=None, officer=None, with_query=True):
     cam.purge(t + 20, hit_hash, why="retention: case closed, vehicle recovered")
     z = cam.z_report(t + 30)
     badges = {cam.id: hx(cam.badge.root), officer.name: hx(officer.root)}
-    witnesses = [("City Clerk", dict(z)), ("Public Library", dict(z)), ("Hot Springs paper", dict(z))]
+    witnesses = [("County Clerk", dict(z)), ("Public Library", dict(z)), ("Local paper", dict(z))]
     return cam, officer, badges, witnesses, z
 
 

@@ -69,6 +69,10 @@ holding nothing worth stealing.
 | hospital | witness node, receive-only | checkpoint fingerprints only: no plates, no case numbers |
 | library, local paper | witness nodes + the public viewer; the printed daily fingerprint | checkpoint fingerprints |
 
+**Clark County candidates [TO-VERIFY]:** the county's 911 / sheriff's dispatch center for the Jetson; the
+local hospital in Arkadelphia, the public library, Henderson State or Ouachita Baptist University, and the
+local paper as witness nodes.
+
 **Needs a yes from:** the dispatch director (and the 911 board if the county has one), on rack space,
 power, room access and who holds the cabinet key.
 
