@@ -9,6 +9,9 @@
 - **Light protects *who looked*, not *what was seen*.** A transparent store of every plate would be a
   public stalking tool. So light comes paired with **forgetting**: keep almost nothing, and shine
   light on every access to what's kept.
+- **Don't depend on encryption, but don't skip it either.** Where CJIS applies (matching against
+  NCIC/ACIC data), FIPS-validated encryption in transit and at rest is mandatory. Use it. The point is
+  that the system's trustworthiness must still hold if that encryption fails.
 - **Integrity survives where secrecy doesn't.** Quantum attacks break public-key encryption. Hash
   functions (SHA-256 and up) and hash-based signatures (NIST SLH-DSA, XMSS/LMS) survive. Tamper
   evidence needs only those.
@@ -88,7 +91,9 @@ A dashboard can lie too: it can show green over a broken chain. So:
 - **City log server:** a mirror that only appends.
 - **Witnesses:** clerk, county, library, the local paper, and a citizen oversight board each keep the
   Z-reports, and ideally the full journal.
-- **Retention:** hit payloads erased after 30 days unless tied to an open case. Receipts and purge
+- **Retention:** a published setting, from "hits only" (the edge drops non-matches) up to the Arkansas
+  government cap of 150 days (60 for private lots), longer only while tied to an open case. In the
+  prototype, hit payloads are erased after 30 days. Receipts and purge
   receipts are kept forever.
 
 ---

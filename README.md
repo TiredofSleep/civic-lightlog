@@ -16,16 +16,19 @@ local alternative, built on one assumption:
 
 Two rules carry the whole design:
 
-1. **The edge forgets.** A camera checks each plate against a small published hotlist on the
-   device and drops every non-match within seconds. It keeps a count of what it saw and forgot,
-   never the plates.
+1. **Keep as little as the law and the job need.** Arkansas caps government plate-read retention at
+   150 days (A.C.A. § 12-12-1801 et seq., as amended by Act 668 of 2025). Retention here is a
+   published setting, enforced by a deletion job that logs every run. The strictest setting,
+   "hits only", has the edge drop every non-match within seconds and keep only a count.
 2. **Every camera is an employee on a POS register.** It clocks in, rings up every event with a
    receipt number, signs it with its own PIN, chains it to the last one, and prints a Z-report that
    independent witnesses keep. An officer's lookup is a manager override: it needs the officer's own
    PIN and lands on the public journal.
 
-There's no encryption anywhere. The prototype uses only hashes (SHA-256, which still holds up
-against quantum computers) and hash-based signatures.
+**Trust never depends on encryption.** The audit trail uses only hashes (SHA-256, which still holds
+up against quantum computers) and hash-based signatures. Encryption is still used wherever the law
+requires it: CJIS requires FIPS-validated encryption in transit and at rest once criminal-justice
+data is involved. It just isn't what makes the system trustworthy.
 
 ## Start here
 | read | why |
