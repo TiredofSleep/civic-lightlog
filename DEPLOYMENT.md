@@ -91,6 +91,11 @@ it, or ask it anything.
                                    [ auditor's devices ]  [ public viewer + witness nodes ]
 ```
 
+**Between the two Jetsons sits a link sentinel:** an FPGA board owned by neither side, sealed jointly
+by the clerk and the sheriff. It is the only path between them: it passes only log records toward the
+watchdog and only receipts back, and counts and fingerprints both directions for the witnesses
+(`ackgate.py`). Nothing is released at dispatch until the watchdog's receipt comes back through it.
+
 **What it does:**
 - **Re-runs every watchdog rule (R01–R15) itself,** on its own copy, with its own code. If its findings
   differ from what dispatch reports, that disagreement is itself a red flag.

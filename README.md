@@ -39,11 +39,14 @@ data is involved. It just isn't what makes the system trustworthy.
 | [watchdog.py](watchdog.py) · [rules.json](rules.json) | the front door and its watchdog: every lookup signed by the user's key **and** the device's key, after a live eye match on the device (the eyes never enter the log); rules as data that can grow; weakening a rule needs two signatures |
 | [SENTINEL.md](SENTINEL.md) | a locally built watchdog chip on every device: its own key, power and one-way radio; reports opening, moving, unplugging and reprogramming |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | the main Jetson at dispatch, an independent receive-only watchdog Jetson owned by the auditor, a sentinel at every camera, and updating everything only by hand: swap sealed modules in the field, update at one public bench with a witness |
+| [ackgate.py](ackgate.py) · [breakit.py](breakit.py) | commit before release: no result leaves until the independent watchdog signs a receipt, through a link sentinel owned by neither side; and 14 attacks against it (12 held, 2 open) |
 | [GRAVEYARD.md](GRAVEYARD.md) | ideas that don't work, and why |
 
 ```bash
 python lightlog.py     # the camera journal: seven tamper tests (standard library only)
-python watchdog.py     # a week at the front door, eleven watchdog rules, and attacks on the rules themselves
+python watchdog.py     # a week at the front door, sixteen watchdog rules, and attacks on the rules themselves
+python ackgate.py      # commit before release: receipts, outages, break-glass
+python breakit.py      # try to break it: 14 attacks, scored HELD or BROKEN
 ```
 
 What the run shows (abridged):

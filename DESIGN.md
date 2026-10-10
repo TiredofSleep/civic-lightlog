@@ -136,6 +136,73 @@ flagged too. New rules apply to the whole history, so a rule written today catch
 
 ---
 
+## 3c. Commit before release (`ackgate.py`)
+**Nothing leaves the system until the independent watchdog has recorded it and said so.**
+
+```
+ dispatch Jetson              LINK SENTINEL (FPGA, owned by neither side)          watchdog Jetson
+   front door  --frames-->  [ gate: only well-formed, signed, in-order records ] -->  records them
+               <--receipts- [ mirror: only fixed-size signed receipts          ] <--  signs receipts
+                            counts + fingerprints both directions, signs the tally,
+                            reports it to the witnesses on its own radio: the tiebreaker
+```
+
+- **You can't reach the watchdog unless you're sending logs.** The gate passes only frames that are
+  exactly a log record: a registered sender, a valid signature, a payload matching its hash, the next
+  sequence number, a chain link matching the watchdog's copy, time not running backwards, and a one-time
+  key never used before (reuse on a different record means the key was cloned).
+- **Only the log knows if it logged the log.** Only the watchdog's key can sign a receipt.
+- **The log logs the log.** Every front-door entry goes to the watchdog in order, receipts included.
+  A result is released only after its receipt is verified and journaled. An entry leaves the queue
+  only on a valid receipt for that exact entry.
+- **No receipt, no release.** If the link is down, results are withheld. **Break-glass** (an Amber
+  alert during an outage) releases anyway, but it's a red flag needing a response, and more than a few
+  is itself a flag.
+- **The link sentinel is the tiebreaker.** It counts and fingerprints every record it passes and every
+  receipt it returns, signs the tally and sends it to the witnesses. A watchdog that signs without
+  recording, or a dispatch that claims to have sent what it didn't, shows up against the tally.
+
+### Break-it results (`breakit.py`)
+| attack | result |
+|---|---|
+| fake receipts to release data and drain the queue | **held**: withheld, queue kept for the real watchdog (this broke in v1 and was fixed) |
+| replay an old record | **held** |
+| fork the history sent to the watchdog | **held** |
+| swap the payload under a valid signature | **held** |
+| clone the front door's key onto a second machine | **held**: reused one-time key detected |
+| back-date a record | **held** |
+| watchdog signs without recording | **held**: link sentinel tally |
+| reach the watchdog with anything but a log record | **held**: dropped at the gate |
+| make break-glass the normal path | **held** |
+| send data back through the mirror | **held**: blocked at the mirror |
+| watchdog + link sentinel collude | **held**: the front door's journaled receipts don't match the watchdog's chain |
+| search by area to find a protected address without naming a plate | **held after a fix**: broke the plate-based rules; new rule R16 needs a warrant for area, camera-and-time, and partial searches |
+| **read the plate store directly, skipping the front door** | **BROKEN**: nothing records it. Needs *key release* (below) |
+| **exhaust the one-time keys with spam lookups** | **BROKEN** (denial of service): real LMS trees hold ~a million signatures or more, and lookups need rate limits |
+
+### Layers still missing
+1. **Key release at the store.** Fixes the direct-read attack. Plate reads are stored encrypted. The key
+   for any read is split, and the watchdog's share comes back through the mirror *only with a receipt*.
+   No receipt, no key, no plate. Encryption isn't what the trust rests on here; it's a lock that only
+   the log can open. CJIS requires encryption at rest anyway.
+2. **Sign every read at the camera.** A plate read must carry the camera's signature and an image hash
+   from the moment it's captured. Otherwise someone can insert a fake sighting into the store and frame a
+   person. This is evidence integrity, and it matters as much as access logging.
+3. **An independent clock.** Give the link sentinel a GPS-disciplined clock (or a signed time protocol
+   like Roughtime) and have it stamp its tallies, so no Jetson's clock is trusted.
+4. **Transport security required by law.** CJIS needs FIPS-validated encryption and mutual
+   authentication in transit (TLS 1.3, ideally with a hybrid post-quantum key exchange). Not for trust,
+   for compliance, and to keep casual eavesdroppers out.
+5. **Rate limits and large key trees.** Per-user and per-device lookup limits, and production LMS/XMSS
+   with trees sized for decades.
+6. **Backups no one can delete.** Ransomware is the likeliest real attack. Write-once backups, and the
+   witnesses' copies, mean the record survives the dispatch box being wiped.
+7. **The human layer.** A two-person rule for any admin action, background checks, training, and the
+   ordinance's penalties. Every documented failure in the research was a people failure, not a
+   cryptography failure.
+
+---
+
 ## 4. Storage
 - **On the camera:** append-only flash, the journal plus payloads for hits only (kilobytes a day; the
   full plate stream is never stored).

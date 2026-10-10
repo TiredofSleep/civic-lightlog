@@ -165,6 +165,25 @@
         ]
       },
       "why": "A flag nobody answers is California's unread logs again. Every RED needs a signed response from an authorized person within 48 hours, never from the person it's about; otherwise it escalates to the clerk and the council."
+    },
+    {
+      "id": "R16",
+      "type": "area_or_partial",
+      "severity": "RED",
+      "params": {
+        "wildcards": [
+          "*",
+          "?",
+          "%",
+          "_"
+        ],
+        "area_prefixes": [
+          "AREA:",
+          "CAMERA:",
+          "NEAR:"
+        ]
+      },
+      "why": "Found by breakit.py: 'every plate near the shelter at 2 a.m.' never names a plate, so the protected-plate rule can't see it. Area, camera-and-time, and partial-plate searches need a warrant on the record."
     }
   ]
 }

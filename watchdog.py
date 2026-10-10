@@ -201,6 +201,15 @@ def _(qs, p, ctx):
             yield dict(seq="-", t=b), f"no signed auditor review for {(b - a) / DAY:.1f} days (max {p['max_days']})"
 
 
+@rule("area_or_partial")
+def _(qs, p, ctx):
+    for q in qs:
+        plate = q["plate"]
+        if any(c in plate for c in p["wildcards"]) or plate.upper().startswith(tuple(p["area_prefixes"])):
+            if q.get("legal_basis") != "warrant":
+                yield q, f"area or partial search '{plate}' without a warrant: it can reveal protected people without naming a plate"
+
+
 @rule("revoked_key")
 def _(qs, p, ctx):
     for q in qs:
