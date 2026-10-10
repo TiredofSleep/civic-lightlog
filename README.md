@@ -35,7 +35,7 @@ data is involved. It just isn't what makes the system trustworthy.
 |---|---|
 | [DESIGN.md](DESIGN.md) | the POS model, the record format, how tampering shows on the digital side and the UI side, the threat model and its limits |
 | [lightlog.py](lightlog.py) | the working prototype: one camera's shift, then seven ways to cheat it, and what the auditor sees |
-| [watchdog.py](watchdog.py) · [rules.json](rules.json) | the front door and its watchdog: every lookup signed by the user's key **and** the device's key; rules as data that can grow; weakening a rule needs two signatures |
+| [watchdog.py](watchdog.py) · [rules.json](rules.json) | the front door and its watchdog: every lookup signed by the user's key **and** the device's key, after a live eye match on the device (the eyes never enter the log); rules as data that can grow; weakening a rule needs two signatures |
 | [GRAVEYARD.md](GRAVEYARD.md) | ideas that don't work, and why |
 
 ```bash

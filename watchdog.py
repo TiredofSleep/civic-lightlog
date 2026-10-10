@@ -29,7 +29,7 @@ DAY, HOUR, MIN = 86400, 3600, 60
 # --------------------------------------------------------------------------------------------
 class FrontDoor:
     def __init__(self):
-        self.badge = Signer("FRONT-DOOR", height=7)
+        self.badge = Signer("FRONT-DOOR", height=8)
         self.journal, self.payloads, self.seq, self.prev = [], {}, 0, "0" * 64
 
     def ring(self, t, kind, payload, cosigners=()):
@@ -47,6 +47,13 @@ class FrontDoor:
     def query(self, t, user, device, case, reason, plate, shared_with=None):
         return self.ring(t, "QUERY", dict(user=user.name, device=device.name, case=case, reason=reason,
                                           plate=plate, shared_with=shared_with), cosigners=(user, device))
+
+    def presence(self, t, user, device, live, faces):
+        """Eyes on: the device's secure chip matched the user's eyes and checked liveness. Only the
+        RESULT is recorded, signed by the device and the unlocked user key. The biometric itself never
+        leaves the chip and never enters the journal."""
+        return self.ring(t, "PRESENCE", dict(user=user.name, device=device.name, live=live, faces=faces),
+                         cosigners=(user, device) if live else (device,))
 
     def review(self, t, auditor, through_seq, notes):
         return self.ring(t, "REVIEW", dict(auditor=auditor.name, through_seq=through_seq, notes=notes),
@@ -156,6 +163,30 @@ def _(qs, p, ctx):
         last[q["user"]] = q
 
 
+@rule("eyes_on")
+def _(qs, p, ctx):
+    """Every lookup needs a live eye match for the same person on the same device, moments before."""
+    for q in qs:
+        ok = [e for e in ctx["presence"] if e["user"] == q["user"] and e["device"] == q["device"]
+              and e["live"] and e["user_signed"] and 0 <= q["t"] - e["t"] <= p["max_age_s"]]
+        if not ok:
+            yield q, f"no live eye match for {q['user']} on {q['device']} in the {p['max_age_s']} s before this lookup"
+
+
+@rule("liveness_failed")
+def _(qs, p, ctx):
+    for e in ctx["presence"]:
+        if not e["live"]:
+            yield e, f"eye match on {e['device']} failed liveness (photo, screen or replay?)"
+
+
+@rule("extra_eyes")
+def _(qs, p, ctx):
+    for e in ctx["presence"]:
+        if e["faces"] > p["max_faces"]:
+            yield e, f"{e['faces']} faces in view of {e['device']} while {e['user']} was looking"
+
+
 @rule("review_overdue")
 def _(qs, p, ctx):
     reviews = sorted(ctx["reviews"])
@@ -177,7 +208,7 @@ def _(qs, p, ctx):
 # --------------------------------------------------------------------------------------------
 def watch(door, rules_on_disk, registry, ctx):
     findings = []
-    queries, reviews, rulesets = [], [], []
+    queries, reviews, rulesets, presence = [], [], [], []
     for rec in door.journal:
         b, msg = rec["body"], canon(rec["body"])
         p = door.payloads[b["data"]]
@@ -191,6 +222,10 @@ def watch(door, rules_on_disk, registry, ctx):
             if p["device"] not in signed:
                 findings.append(("RED", "SIG", b["seq"], f"no valid signature from device '{p['device']}'"))
             queries.append(dict(p, t=b["t"], seq=b["seq"]))
+        elif b["kind"] == "PRESENCE":
+            if p["device"] not in signed:
+                findings.append(("RED", "SIG", b["seq"], f"presence not signed by device '{p['device']}'"))
+            presence.append(dict(p, t=b["t"], seq=b["seq"], user_signed=p["user"] in signed))
         elif b["kind"] == "REVIEW" and p["auditor"] in signed:
             reviews.append(b["t"])
         elif b["kind"] == "RULESET":
@@ -210,7 +245,7 @@ def watch(door, rules_on_disk, registry, ctx):
     if prev_rules is None or hx(H(canon(rules_on_disk))) != hx(H(canon(prev_rules))):
         findings.append(("RED", "RULES", "-", "rules.json on disk is not the rule set published on the journal"))
 
-    ctx = dict(ctx, reviews=reviews)
+    ctx = dict(ctx, reviews=reviews, presence=presence)
     for r in prev_rules["rules"] if prev_rules else []:
         fn = RULE_TYPES.get(r["type"])
         if fn is None:
@@ -225,9 +260,9 @@ def watch(door, rules_on_disk, registry, ctx):
 # A week at the sheriff's office, with a few things going wrong
 # --------------------------------------------------------------------------------------------
 def week(rules):
-    people = {n: Signer(n, height=5) for n in
+    people = {n: Signer(n, height=6) for n in
               ("sheriff", "deputy-a", "investigator-b", "former-deputy-c", "auditor-board", "county-clerk")}
-    devices = {n: Signer(n, height=6) for n in ("SO-TERM-01", "SO-TERM-02", "SO-LAPTOP-S1", "SO-MDT-07", "UNKNOWN-PC")}
+    devices = {n: Signer(n, height=7) for n in ("SO-TERM-01", "SO-TERM-02", "SO-LAPTOP-S1", "SO-MDT-07", "UNKNOWN-PC")}
     door = FrontDoor()
     registry = {"FRONT-DOOR": hx(door.badge.root), **{k: hx(v.root) for k, v in {**people, **devices}.items()}}
     ctx = dict(open_cases={"26-0412", "26-0418"},
@@ -236,6 +271,14 @@ def week(rules):
                offices={"auditor-board": "auditor", "county-clerk": "clerk"},
                now=10 * DAY)
     P, D = people, devices
+    real_query = door.query
+
+    def look(t, user, device, *a, eyes=True, live=True, faces=1, **k):
+        if eyes:
+            door.presence(t - 20, user, device, live, faces)
+        return real_query(t, user, device, *a, **k)
+
+    door.query = look
     door.publish_rules(0, rules, "initial", [P["auditor-board"]])
     d1 = DAY + 9 * HOUR
     door.query(d1, P["deputy-a"], D["SO-MDT-07"], "26-0412", "stolen truck seen on Hwy 67 report", "7ABC123")
@@ -244,13 +287,16 @@ def week(rules):
                shared_with="Arkansas State Police")
     door.review(2 * DAY + 10 * HOUR, P["auditor-board"], door.seq, "all lookups tied to open cases")
     # the planted problems
-    door.query(3 * DAY + 14 * HOUR, P["sheriff"], D["UNKNOWN-PC"], "26-0418", "follow-up on hit-and-run vehicle", "ARK55X1")
+    door.query(3 * DAY + 14 * HOUR, P["sheriff"], D["UNKNOWN-PC"], "26-0418", "follow-up on hit-and-run vehicle", "ARK55X1",
+               eyes=False)  # someone with the sheriff's password, but not his eyes
     door.query(3 * DAY + 14 * HOUR + 4 * MIN, P["sheriff"], D["SO-LAPTOP-S1"], "26-0418", "follow-up on hit-and-run vehicle", "ARK55X2")
-    door.query(4 * DAY + 2 * HOUR + 17 * MIN, P["deputy-a"], D["SO-MDT-07"], "26-9999", "idk", "SHELTER1")
+    door.query(4 * DAY + 2 * HOUR + 17 * MIN, P["deputy-a"], D["SO-MDT-07"], "26-9999", "idk", "SHELTER1", faces=2)
+    door.presence(4 * DAY + 3 * HOUR, P["deputy-a"], D["SO-MDT-07"], live=False, faces=1)  # a photo held up to the camera
     for k in range(16):
         door.query(5 * DAY + 13 * HOUR + k * MIN, P["investigator-b"], D["SO-TERM-02"], "26-0412",
                    "canvass of plates near the theft location", f"ARK{100 + k}", shared_with="Data Broker LLC" if k == 15 else None)
     door.query(6 * DAY + 11 * HOUR, P["former-deputy-c"], D["SO-TERM-01"], "26-0412", "checking an old lead on the truck", "7ABC123")
+    door.query = real_query
     return door, registry, ctx, P
 
 
@@ -288,9 +334,9 @@ if __name__ == "__main__":
     # a new rule added properly: one auditor signature, and it starts working at once
     grown = copy.deepcopy(rules)
     grown["version"] = 2
-    grown["rules"].append({"id": "R12", "type": "protected_plates", "severity": "RED", "params": {"list": "v2"},
+    grown["rules"].append({"id": "R15", "type": "protected_plates", "severity": "RED", "params": {"list": "v2"},
                            "why": "example of the rule set growing"})
     door3 = copy.deepcopy(door)
     door3.publish_rules(7 * DAY, grown, "add", [P["auditor-board"]])
-    f = [x for x in watch(door3, grown, registry, ctx) if x[1] in ("RULES", "R12")]
-    show("A new rule R12 added the proper way (auditor signs), applied to the whole history", f)
+    f = [x for x in watch(door3, grown, registry, ctx) if x[1] in ("RULES", "R15")]
+    show("A new rule R15 added the proper way (auditor signs), applied to the whole history", f)

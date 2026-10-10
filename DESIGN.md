@@ -108,6 +108,20 @@ need no code. A rule type with no checker fails loudly; it's never silently skip
 | review_overdue | **watching the watchers:** no signed auditor review within 7 days is a violation |
 | revoked_key | keys still working after someone leaves |
 
+**Eyes on (R12–R14).** The phone or terminal camera is another employee. Before every lookup, the
+device's secure chip matches the user's eyes and checks that they're live (not a photo, screen or
+replay). It then signs a `PRESENCE` receipt with the device key and the user key that the match
+unlocked. The log knows **whose eyes** were on the data, and whether **anyone else's** were in view.
+
+- **The eyes unlock the key; they never enter the log.** A biometric is the one secret that can never
+  be changed. A leaked iris template compromises a person for life, and hashing doesn't help: scans
+  are noisy, so a plain hash never matches twice, and the workarounds leak. Same model as Face ID and
+  passkeys: match on the chip, publish only the signed result.
+- **Still not impenetrable.** A coerced user, a compromised chip, or a good enough fake can cross it.
+  Each rule raises the cost and makes crossing *visible*. None of them makes crossing impossible.
+- **Law and labour.** Arkansas counts biometric data as personal information under its breach law.
+  Requiring it of county staff needs a written policy, and it's another reason never to store templates.
+
 **The rules guard themselves.** The rule set's hash is published as a `RULESET` receipt. Adding a rule
 needs the auditor's signature. **Anything else (removing a rule, loosening a limit) counts as weakening
 and needs the auditor and the county clerk.** The watchdog works out the change type itself, so a
@@ -130,6 +144,10 @@ flagged too. New rules apply to the whole history, so a rule written today catch
 ---
 
 ## 5. Not solved yet
+- **The boundary always gives eventually.** Every link between the digital record and the physical
+  world (a camera, a chip, a face, a person under pressure) can be crossed with enough effort. The
+  design doesn't promise it can't be. It promises that crossing **costs more, shows up in the record
+  sooner, and has a named consequence**, and that keys can be rotated and rules added after each lesson.
 - **A camera that lies from the start** (malicious firmware that skips a plate before it ever
   reaches the journal). Countered by open, reproducible firmware builds, the firmware hash in every
   `CLOCK_IN`, and mystery-shopper test plates. Not a proof.
