@@ -61,5 +61,9 @@ What the run shows (abridged):
 7. Key stolen, whole day re-signed    RED    the Z-report each witness holds is not in the journal
 ```
 
+## Related
+- **[flock-alternatives](https://github.com/TiredofSleep/flock-alternatives):** the research hub behind this project: every option
+  for replacing or governing plate cameras, Arkansas law, CJIS, vendors, costs, and the Clark County plan.
+
 ## License
 Code under [MIT](LICENSE). Documents under CC BY 4.0. Copyright © 2026 Brayden Sanders.
