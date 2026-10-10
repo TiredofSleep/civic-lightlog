@@ -37,6 +37,41 @@ pole**, together with the edge computer, and watches everything that goes up to 
 - **The box is reachable from the ground,** so a swap doesn't need a bucket truck. Only camera
   replacement does.
 
+## 1b. Where the core lives: the dispatch center
+The central computer (an NVIDIA **Jetson**) runs the front door, the full journal, the watchdog and the
+retention job. **It lives at the county 911 / sheriff's dispatch center**, because dispatch is:
+- staffed 24/7;
+- on a generator and UPS;
+- already built to CJIS physical-security rules (a controlled room, and staff who have passed
+  fingerprint background checks);
+- the place hotlist alerts have to reach anyway.
+
+**How it sits there:**
+- A **locked rack or cabinet** with a numbered seal, a door switch and a light sensor, and **its own
+  sentinel** reporting over LoRa, like every camera site. Dispatch staff keep the room safe; the sentinel
+  and the witnesses show whether anyone opened the box.
+- **Data comes in one way** from the pole sites (one-way links or LTE, receive-only at dispatch).
+- **The front door is the only two-way path:** deputies' lookups, each with the user key, the device
+  key and the eye check (watchdog rules R01–R15).
+- **Updates follow the same rule:** never over the network. A **spare Jetson**, imaged and sealed at the
+  public bench, is swapped in; the old one goes back to the bench. Both are receipts.
+- **Retention data stays here,** under the Arkansas cap. Encryption at rest is still required by CJIS.
+
+**Why not the hospital?** Its staff and contractors with closet keys aren't fingerprint-checked (a
+CJIS problem); a police search hub inside a hospital damages patient trust; and it would make the
+hospital a target. The hospital is a good **witness** instead: generator power and neutral ground, but
+holding nothing worth stealing.
+
+| site | role | holds |
+|---|---|---|
+| **dispatch center** | the Jetson: front door, full journal, watchdog, retention job | plate reads under the retention cap, the journal, sentinel reports |
+| courthouse / clerk | second full copy of the journal; the public bench; the spares safe | the journal, the update token, spare sentinels and a spare Jetson |
+| hospital | witness node, receive-only | checkpoint fingerprints only: no plates, no case numbers |
+| library, local paper | witness nodes + the public viewer; the printed daily fingerprint | checkpoint fingerprints |
+
+**Needs a yes from:** the dispatch director (and the 911 board if the county has one), on rack space,
+power, room access and who holds the cabinet key.
+
 ## 2. The one exception: data, not code
 Hotlists change daily, so driving them around by hand isn't realistic. **Code only moves by hand. Data
 moves on a narrow, signed, one-way feed:**
@@ -88,8 +123,8 @@ ahead of time (date, site, crew), so an **unscheduled** gap stands out.
 ## 6. Rollout
 | phase | sites | proves | rough cost [UNSOURCED estimates] |
 |---|---|---|---|
-| **0. Bench** | 1 sentinel on the Arkadelphia lot camera | heartbeats over LoRa; door, light and power events show on the journal; one swap done start to finish | ~$50–150 of parts + a LoRa gateway (~$100–250) |
-| **1. Pilot** | 2–3 county sites | the full bench ceremony, a quarterly swap round, a planted tamper test caught | ~$300–800 in sentinels and spares, plus pole boxes |
+| **0. Bench** | 1 sentinel on the Arkadelphia lot camera (the Jetson runs on the bench, not yet at dispatch) | heartbeats over LoRa; door, light and power events show on the journal; one swap done start to finish | ~$50–150 of parts + a LoRa gateway (~$100–250) |
+| **1. Pilot** | 2–3 county sites + the Jetson moved into its sealed cabinet at dispatch, with its own sentinel and a hospital witness node | the full bench ceremony, a quarterly swap round, a planted tamper test caught | ~$300–800 in sentinels and spares, plus pole boxes |
 | **2. County** | every site | swap rounds on schedule with trained local staff | per site: sentinel ~$15–40, pole box, seals; staff time is the real cost |
 
 **Gate before phase 2:** a named, trained local person besides the founder can run the bench and a swap
