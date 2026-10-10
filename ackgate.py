@@ -25,7 +25,8 @@ import sys
 from lightlog import H, Signer, canon, hx, verify_sig
 
 RECORD_FIELDS = {"src", "seq", "t", "kind", "data", "prev"}
-RECEIPT_FIELDS = {"record", "wd_seq", "wd_head", "wd_t"}
+RECEIPT_FIELDS = {"record", "wd_seq", "wd_head", "wd_t", "released"}
+RATE_LIMIT = (20, 3600)  # lookups per user per window (seconds)
 CLOCK_TOLERANCE_S = 120
 
 
@@ -94,12 +95,21 @@ class Watchdog:
         if not self.skip_recording:
             self.chain.append(dict(record=rh, prev=self.head, payload=msg["payload"], kind=msg["body"]["kind"]))
             self.head = hx(H(canon(self.chain[-1])))
-        return self.mirror(rh, now)
+        return self.mirror(rh, now, self.release_for(msg))
 
-    def mirror(self, record_hash, now):
-        """The mirror only ever emits this one shape: which record, where in the chain, when, signed."""
-        receipt = dict(record=record_hash, wd_seq=len(self.chain), wd_head=self.head, wd_t=now)
-        return dict(receipt=receipt, sig=self.key.sign(canon(receipt)))
+    def release_for(self, msg):
+        """Key shares to hand back with this receipt (see vault.py). None by default."""
+        return None
+
+    def mirror(self, record_hash, now, shares=None):
+        """The mirror only ever emits this shape: which record, where in the chain, when, the hash of any
+        key shares released with it, signed; plus those shares."""
+        receipt = dict(record=record_hash, wd_seq=len(self.chain), wd_head=self.head, wd_t=now,
+                       released=hx(H(canon(shares))) if shares is not None else None)
+        ack = dict(receipt=receipt, sig=self.key.sign(canon(receipt)))
+        if shares is not None:
+            ack["shares"] = shares
+        return ack
 
 
 # --------------------------------------------------------------------------------------------
@@ -109,7 +119,7 @@ class LinkSentinel:
     def __init__(self, gate, watchdog):
         self.gate, self.wd = gate, watchdog
         self.key = Signer("LINK-SENTINEL", height=6)
-        self.passed_in = self.passed_out = 0
+        self.passed_in = self.passed_out = self.key_releases = 0
         self.fp_in = self.fp_out = "0" * 64
 
     def carry(self, frame, now):
@@ -119,17 +129,24 @@ class LinkSentinel:
         self.passed_in += 1
         self.fp_in = hx(H(bytes.fromhex(self.fp_in) + H(canon(msg["body"]))))
         ack = self.wd.receive(msg, now)
-        if not (isinstance(ack, dict) and set(ack) == {"receipt", "sig"} and set(ack["receipt"]) == RECEIPT_FIELDS):
+        shape_ok = (isinstance(ack, dict) and set(ack) in ({"receipt", "sig"}, {"receipt", "sig", "shares"})
+                    and isinstance(ack.get("receipt"), dict) and set(ack["receipt"]) == RECEIPT_FIELDS)
+        if not shape_ok:
             self.gate.alarms.append("the watchdog sent something that isn't a receipt: blocked at the mirror")
             return None
+        if ("shares" in ack) != (ack["receipt"]["released"] is not None) or (
+                "shares" in ack and hx(H(canon(ack["shares"]))) != ack["receipt"]["released"]):
+            self.gate.alarms.append("key shares don't match what the receipt says was released: blocked at the mirror")
+            return None
         self.passed_out += 1
+        self.key_releases += len(ack.get("shares", []))
         self.fp_out = hx(H(bytes.fromhex(self.fp_out) + H(canon(ack["receipt"]))))
         return ack
 
     def tally(self, now):
         """Signed and sent to the witnesses on the sentinel's own radio, on a schedule."""
         t = dict(t=now, passed_in=self.passed_in, passed_out=self.passed_out, fp_in=self.fp_in, fp_out=self.fp_out,
-                 dropped=len(self.gate.dropped))
+                 dropped=len(self.gate.dropped), key_releases=self.key_releases)
         return dict(tally=t, sig=self.key.sign(canon(t)))
 
 
@@ -141,6 +158,7 @@ class FrontDoor:
         self.key = key or Signer("FRONT-DOOR", height=7)
         self.wd_root = wd_root
         self.journal, self.seq, self.prev, self.released, self.outbox = [], 0, "0" * 64, [], []
+        self.recent, self.limited, self.last_shares = {}, {}, None
 
     def ring(self, t, kind, payload):
         self.seq += 1
@@ -169,12 +187,32 @@ class FrontDoor:
             self.outbox.pop(0)
         return acks
 
+    def over_limit(self, t, user):
+        """Per-user rate limit. Refusals are counted, and logged once per window (logging every refused
+        attempt would let a spammer burn the front door's one-time keys)."""
+        n, window = RATE_LIMIT
+        times = [x for x in self.recent.get(user, []) if t - x < window]
+        self.recent[user] = times
+        if len(times) < n:
+            times.append(t)
+            return False
+        w = int(t // window)
+        count = self.limited.get((user, w), 0) + 1
+        self.limited[(user, w)] = count
+        if count == 1:
+            self.ring(t, "RATE_LIMITED", dict(user=user, limit=n, window_s=window))
+        return True
+
     def lookup(self, t, link, user, plate, case, result, break_glass=False):
+        self.last_shares = None
+        if self.over_limit(t, user):
+            return "REFUSED: rate limit"
         body = self.ring(t, "QUERY", dict(user=user, plate=plate, case=case))
         rh = hx(H(canon(body)))
         ack = self.flush(link, t).get(rh)
         if ack:
-            self.ring(t, "RECEIPT", ack)  # the log logs the log
+            self.ring(t, "RECEIPT", dict(receipt=ack["receipt"], sig=ack["sig"]))  # the log logs the log
+            self.last_shares = ack.get("shares")
             self.flush(link, t)
             self.released.append((user, plate, result))
             return "RELEASED"
